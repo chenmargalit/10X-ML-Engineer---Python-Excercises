@@ -1,1 +1,8 @@
 .ipynb_checkpoints/
+media
+venv
+.DS_STORE
+.idea
+__pycache__/
+*.svg
+*.txt
