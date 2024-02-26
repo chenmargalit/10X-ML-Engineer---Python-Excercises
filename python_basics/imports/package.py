@@ -1,3 +1,10 @@
-from imports import some_func_this_file_runs
+# opens excel file
+with open()
+# calcuates average
 
-some_func_this_file_runs()
+file_path = 'einat_computer/'
+
+
+
+
+
