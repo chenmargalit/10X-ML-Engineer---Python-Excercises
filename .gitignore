@@ -10,3 +10,5 @@ tests
 *.txt
 scripts
 advanced_python/template
+generic.ipynb
+feature engineering
