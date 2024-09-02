@@ -6,7 +6,6 @@ venv
 __pycache__/
 animations
 images
-tests
 *.txt
 scripts
 advanced_python/template
