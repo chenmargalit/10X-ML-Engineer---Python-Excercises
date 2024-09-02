@@ -45,4 +45,5 @@ class PlayerBuilder:
 
 player_builder = PlayerBuilder()
 player = player_builder.set_team('barca').set_salary(100).set_shirt_number(12).build()
-print(player.team)
+print(player)
+

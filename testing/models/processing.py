@@ -16,7 +16,5 @@ def remove_stop_words(string: str) -> str:
     return filtered_text
 
 
-
-
-
+print(remove_stop_words('Its late, I want to go home and now'))
 
