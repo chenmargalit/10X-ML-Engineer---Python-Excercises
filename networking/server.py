@@ -3,11 +3,11 @@ from pydantic import BaseModel
 import joblib
 import numpy as np
 
-app = FastAPI()
-
 mdl = joblib.load('knn.joblib')
 
 
+#
+#
 class Item(BaseModel):
     name: str
     description: str = None
@@ -15,23 +15,26 @@ class Item(BaseModel):
     tax: float = None
 
 
-class Item(BaseModel):
-    item_to_predict: list
+# class Item(BaseModel):
+#     item_to_predict: list
 
 
-class Items(BaseModel):
-    items_to_predict: list[list[float]]
+#
+#
+# class Items(BaseModel):
+#     items_to_predict: list[list[float]]
+app = FastAPI()
 
 
 # GET endpoint
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the FastAPI app! 123"}
+    return {"message": "Welcome to INT DS course"}
 
 
 # POST endpoint
-@app.post("/items/")
-def create_item(item):
+@app.post("/item")
+def create_item(item: Item):
     return f'request received for item {item.name}'
 
 
