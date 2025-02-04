@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/chen.m/Desktop/Lectures/10xml/nlp/mlruns/0/a19e4a8d546a439a8505649e68f332e8/artifacts
+end_time: 1733276152741
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: a19e4a8d546a439a8505649e68f332e8
+run_name: ./results
+run_uuid: a19e4a8d546a439a8505649e68f332e8
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1733276145665
+status: 3
+tags: []
+user_id: chen.m

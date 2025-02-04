@@ -1,0 +1,1118 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "id": "5ec884b8-26f9-43c0-a612-d1b83038cc14",
+   "metadata": {
+    "ExecuteTime": {
+     "start_time": "2025-01-01T13:29:55.853104Z"
+    },
+    "is_executing": true
+   },
+   "outputs": [],
+   "source": [
+    "# data: https://download.pytorch.org/tutorial/data.zip\n",
+    "import torch.nn as nn\n",
+    "import torch\n",
+    "from pdb import set_trace\n",
+    "import io\n",
+    "import os\n",
+    "import unicodedata\n",
+    "import string\n",
+    "import glob\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "import torch\n",
+    "import random\n",
+    "\n",
+    "# alphabet small + capital letters + \" .,;'\"\n",
+    "ALL_LETTERS = string.ascii_letters + \" .,;'\"\n",
+    "N_LETTERS = len(ALL_LETTERS)\n",
+    "\n",
+    "# Turn a Unicode string to plain ASCII, thanks to https://stackoverflow.com/a/518232/2809427\n",
+    "def unicode_to_ascii(s):\n",
+    "    return ''.join(\n",
+    "        c for c in unicodedata.normalize('NFD', s)\n",
+    "        if unicodedata.category(c) != 'Mn'\n",
+    "        and c in ALL_LETTERS\n",
+    "    )\n",
+    "\n",
+    "def load_data():\n",
+    "    # Build the category_lines dictionary, a list of names per language\n",
+    "    category_lines = {}\n",
+    "    all_categories = []\n",
+    "    \n",
+    "    def find_files(path):\n",
+    "        return glob.glob(path)\n",
+    "    \n",
+    "    # Read a file and split into lines\n",
+    "    def read_lines(filename):\n",
+    "        lines = io.open(filename, encoding='utf-8').read().strip().split('\\n')\n",
+    "        return [unicode_to_ascii(line) for line in lines]\n",
+    "    \n",
+    "    for filename in find_files('names/*.txt'):\n",
+    "        from pdb import set_trace\n",
+    "        category = os.path.splitext(os.path.basename(filename))[0]\n",
+    "        all_categories.append(category)\n",
+    "        \n",
+    "        lines = read_lines(filename)\n",
+    "        category_lines[category] = lines\n",
+    "        \n",
+    "    return category_lines, all_categories\n",
+    "\n",
+    "\n",
+    "\n",
+    "\"\"\"\n",
+    "To represent a single letter, we use a “one-hot vector” of \n",
+    "size <1 x n_letters>. A one-hot vector is filled with 0s\n",
+    "except for a 1 at index of the current letter, e.g. \"b\" = <0 1 0 0 0 ...>.\n",
+    "\n",
+    "To make a word we join a bunch of those into a\n",
+    "2D matrix <line_length x 1 x n_letters>.\n",
+    "\n",
+    "That extra 1 dimension is because PyTorch assumes\n",
+    "everything is in batches - we’re just using a batch size of 1 here.\n",
+    "\"\"\"\n",
+    "\n",
+    "# Find letter index from all_letters, e.g. \"a\" = 0\n",
+    "def letter_to_index(letter):\n",
+    "    return ALL_LETTERS.find(letter)\n",
+    "\n",
+    "# Just for demonstration, turn a letter into a <1 x n_letters> Tensor\n",
+    "def letter_to_tensor(letter):\n",
+    "    tensor = torch.zeros(1, N_LETTERS)\n",
+    "    tensor[0][letter_to_index(letter)] = 1\n",
+    "    return tensor\n",
+    "\n",
+    "# Turn a line into a <line_length x 1 x n_letters>,\n",
+    "# or an array of one-hot letter vectors\n",
+    "def line_to_tensor(line):\n",
+    "    tensor = torch.zeros(len(line), 1, N_LETTERS)\n",
+    "    for i, letter in enumerate(line):\n",
+    "        tensor[i][0][letter_to_index(letter)] = 1\n",
+    "    return tensor\n",
+    "\n",
+    "\n",
+    "def random_training_example(category_lines, all_categories):\n",
+    "    \n",
+    "    def random_choice(a):\n",
+    "        random_idx = random.randint(0, len(a) - 1)\n",
+    "        return a[random_idx]\n",
+    "    \n",
+    "    category = random_choice(all_categories)\n",
+    "    line = random_choice(category_lines[category])\n",
+    "    category_tensor = torch.tensor([all_categories.index(category)], dtype=torch.long)\n",
+    "    line_tensor = line_to_tensor(line)\n",
+    "    return category, line, category_tensor, line_tensor"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "id": "1b0eee26-3301-438d-be10-13d2d8efe721",
+   "metadata": {
+    "is_executing": true
+   },
+   "outputs": [],
+   "source": [
+    "class RNN(nn.Module):\n",
+    "    \n",
+    "    def __init__(self, input_size, hidden_size, output_size):\n",
+    "        super().__init__()\n",
+    "        \n",
+    "        self.hidden_size = hidden_size\n",
+    "        self.i2h = nn.Linear(input_size + hidden_size, hidden_size)\n",
+    "        self.i2o = nn.Linear(input_size + hidden_size, output_size)\n",
+    "        \n",
+    "    def forward(self, input_tensor, hidden_tensor):\n",
+    "        combined = torch.cat((input_tensor, hidden_tensor), 1)\n",
+    "        hidden = self.i2h(combined)\n",
+    "        output = self.i2o(combined)\n",
+    "        return output, hidden\n",
+    "    \n",
+    "    def init_hidden(self):\n",
+    "        return torch.zeros(1, self.hidden_size)\n",
+    "        "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "id": "fcc605e6-6b74-46ae-a57d-de29c405aad3",
+   "metadata": {
+    "is_executing": true
+   },
+   "outputs": [],
+   "source": [
+    "category_lines, all_categories = load_data()\n",
+    "n_categories = len(all_categories)\n",
+    "\n",
+    "n_hidden = 128\n",
+    "rnn = RNN(N_LETTERS, n_hidden, n_categories)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "id": "5421f969-4629-4864-a431-cc4f33781549",
+   "metadata": {
+    "is_executing": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "torch.Size([1, 18])\n",
+      "torch.Size([1, 128])\n"
+     ]
+    }
+   ],
+   "source": [
+    "# one step\n",
+    "input_tensor = letter_to_tensor('A')\n",
+    "hidden_tensor = rnn.init_hidden()\n",
+    "\n",
+    "output, next_hidden = rnn(input_tensor, hidden_tensor)\n",
+    "print(output.size())\n",
+    "print(next_hidden.size())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "id": "144878f6-9272-4f0a-b445-be912ea6a59d",
+   "metadata": {
+    "is_executing": true
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "tensor([16])"
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "output.argmax(dim=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "id": "6f9eca80-d8b8-446e-8da6-6ded438fc690",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'Korean'"
+      ]
+     },
+     "execution_count": 24,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "all_categories[output.argmax(dim=1)]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "id": "2a7333fe-8373-4bf9-ae59-8be4a7418432",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "torch.Size([1, 18])\n",
+      "torch.Size([1, 128])\n"
+     ]
+    }
+   ],
+   "source": [
+    "# whole sequence/name\n",
+    "input_tensor = line_to_tensor('Albert')\n",
+    "hidden_tensor = rnn.init_hidden()\n",
+    "\n",
+    "output, next_hidden = rnn(input_tensor[0], hidden_tensor)\n",
+    "print(output.size())\n",
+    "print(next_hidden.size())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "id": "5d9fc2e1-7e67-43ac-96b7-feb2af307cf8",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Korean\n"
+     ]
+    }
+   ],
+   "source": [
+    "def category_from_output(output):\n",
+    "    category_idx = torch.argmax(output).item()\n",
+    "    return all_categories[category_idx]\n",
+    "\n",
+    "print(category_from_output(output))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "id": "e6fdfd2b-7d12-4e74-8319-6d139d88c80a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "criterion = nn.CrossEntropyLoss()\n",
+    "learning_rate = 0.001\n",
+    "optimizer = torch.optim.Adam(rnn.parameters(), lr=learning_rate)\n",
+    "\n",
+    "def train(line_tensor, category_tensor):\n",
+    "    hidden = rnn.init_hidden()\n",
+    "    \n",
+    "    for i in range(line_tensor.size()[0]):\n",
+    "        output, hidden = rnn(line_tensor[i], hidden)\n",
+    "        \n",
+    "    loss = criterion(output, category_tensor)\n",
+    "    \n",
+    "    optimizer.zero_grad()\n",
+    "    loss.backward()\n",
+    "    optimizer.step()\n",
+    "    return output, loss.item()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "id": "9cd85976-1071-4451-ac52-819488108fa6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "category, line, category_tensor, line_tensor = random_training_example(category_lines, all_categories)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "id": "4597a674-afcf-4c66-af8d-5c7b9f8b0027",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "l = []\n",
+    "for i in range(line_tensor.shape[0]):\n",
+    "    idx = (line_tensor[i].argmax(1))\n",
+    "    l.append(ALL_LETTERS[idx])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "id": "88a38931-a4bc-456c-8f52-f172c485ba19",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "('Sfakianos', 'Greek')"
+      ]
+     },
+     "execution_count": 30,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "''.join(l), category"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "cc648424-84f1-46f4-a274-eb5eb52a45f3",
+   "metadata": {},
+   "source": [
+    "## Make it better"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "id": "4502f6d2-b938-4f1c-aa77-626502443faa",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def random_training_example(category_lines, all_categories):\n",
+    "    \n",
+    "    def random_choice(a):\n",
+    "        random_idx = random.randint(0, len(a) - 1)\n",
+    "        return a[random_idx]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c8b95cf2-880a-4c73-ad1e-307f5cd2eaf7",
+   "metadata": {},
+   "source": [
+    "1. Read everything to one location\n",
+    "2. return x and y"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 32,
+   "id": "8b6ed10d-49b3-4590-928b-790e1841681b",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "\n",
+    "def read_lines_from_files(directory):\n",
+    "    results = []  # To store the tuples\n",
+    "    for filename in os.listdir(directory):\n",
+    "        if filename.endswith('.txt'):  # Process only .txt files\n",
+    "            file_path = os.path.join(directory, filename)\n",
+    "            with open(file_path, 'r', encoding='utf-8') as file:\n",
+    "                for line in file:\n",
+    "                    line_content = line.strip()  # Remove leading/trailing whitespace\n",
+    "                    results.append((line_content, filename.replace('.txt', '')))\n",
+    "    return results\n",
+    "\n",
+    "directory_path = 'names'\n",
+    "lines_with_files = read_lines_from_files(directory_path)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6eaa637f-b7e2-422a-99c1-ad7eb612a004",
+   "metadata": {},
+   "source": [
+    "I need to generate two zero vectors, one for language and one for "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 33,
+   "id": "bff87f06-55a2-445c-acf0-30f22b398998",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "class NamesDataset:\n",
+    "\n",
+    "    def __init__(self, data):\n",
+    "        self.data = data\n",
+    "\n",
+    "    def __len__(self):\n",
+    "        return len(self.data)\n",
+    "\n",
+    "    def __getitem__(self, idx):\n",
+    "        name, language = self.data[idx]\n",
+    "        return name, language"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 34,
+   "id": "e7b71aca-abd9-469b-b337-93b13fdf22e3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from torch.utils.data import DataLoader, Dataset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 35,
+   "id": "eef2550f-0eb9-499a-943d-66015cd14977",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ds = NamesDataset(lines_with_files)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 36,
+   "id": "4ac1776b-5786-4389-85d7-0acb4cbb09b7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "dl = DataLoader(ds, batch_size=1, shuffle=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "id": "e085bd1c-e1ae-46ab-969f-c1cbfc8764db",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "t = [('aaa', 'bbb'), ('ccc','ddd')]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 38,
+   "id": "fcd1ee7a-a9b3-45b8-a1cb-bc024a274fd6",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'bbb'"
+      ]
+     },
+     "execution_count": 38,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "t[0][1]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 39,
+   "id": "6e26da7d-4993-459d-ad7a-34f24ef3c8bf",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "n = NamesDataset(lines_with_files)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "id": "2b3017b7-612a-4521-86f9-25a2f9d9b0b3",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "name, guess and label Derchansky Russian Russian\n",
+      "1 0.0924 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Vaiserman Russian Russian\n",
+      "1 0.1442 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Balakhovsky Russian Russian\n",
+      "1 0.0024 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Turlak Czech Russian\n",
+      "1 1.7930 Sfakianos / Czech WRONG (Russian)\n",
+      "name, guess and label Rainey Arabic English\n",
+      "1 1.5337 Sfakianos / Arabic WRONG (English)\n",
+      "name, guess and label Watters English English\n",
+      "1 0.4079 Sfakianos / English CORRECT\n",
+      "name, guess and label Vinnik Russian Russian\n",
+      "1 0.2838 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Ran Chinese Chinese\n",
+      "1 1.0873 Sfakianos / Chinese CORRECT\n",
+      "name, guess and label Aswad English Arabic\n",
+      "1 1.2538 Sfakianos / English WRONG (Arabic)\n",
+      "name, guess and label Ruzimatov Russian Russian\n",
+      "1 0.0004 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Kreskas English Greek\n",
+      "1 1.9835 Sfakianos / English WRONG (Greek)\n",
+      "name, guess and label Okui Japanese Japanese\n",
+      "1 1.1098 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Holoshin Russian Russian\n",
+      "1 0.2715 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Nielsen English English\n",
+      "1 0.3501 Sfakianos / English CORRECT\n",
+      "name, guess and label Keeble English English\n",
+      "1 0.3520 Sfakianos / English CORRECT\n",
+      "name, guess and label Vives Russian Spanish\n",
+      "1 2.7450 Sfakianos / Russian WRONG (Spanish)\n",
+      "name, guess and label Akutagawa Japanese Japanese\n",
+      "1 0.0581 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Matheson English English\n",
+      "1 0.4705 Sfakianos / English CORRECT\n",
+      "name, guess and label Dontsov Russian Russian\n",
+      "1 0.0031 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Bolton English English\n",
+      "1 0.2280 Sfakianos / English CORRECT\n",
+      "name, guess and label Bata Japanese Arabic\n",
+      "2 1.9304 Sfakianos / Japanese WRONG (Arabic)\n",
+      "name, guess and label Zhiboedov Russian Russian\n",
+      "2 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Shalhoub Arabic Arabic\n",
+      "2 0.0673 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Piccoli Italian Italian\n",
+      "2 0.0438 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Imagawa Japanese Japanese\n",
+      "2 0.0110 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Everhart Russian German\n",
+      "2 3.0779 Sfakianos / Russian WRONG (German)\n",
+      "name, guess and label Nassar Arabic Arabic\n",
+      "2 0.0583 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Mihalkov Russian Russian\n",
+      "2 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Totah Arabic Arabic\n",
+      "2 0.3135 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Ghanem Arabic Arabic\n",
+      "2 0.0550 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Wei Chinese Chinese\n",
+      "2 0.0575 Sfakianos / Chinese CORRECT\n",
+      "name, guess and label Bale English English\n",
+      "2 0.4913 Sfakianos / English CORRECT\n",
+      "name, guess and label Zasetsky Russian Russian\n",
+      "2 0.0134 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Nahamkin Russian Russian\n",
+      "2 0.3733 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Lihodedov Russian Russian\n",
+      "2 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Djibuti Japanese Russian\n",
+      "2 3.2566 Sfakianos / Japanese WRONG (Russian)\n",
+      "name, guess and label Merlo Italian Italian\n",
+      "2 0.9200 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Averianov Russian Russian\n",
+      "2 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Lokhanin Russian Russian\n",
+      "2 0.0176 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Bukoski Russian Polish\n",
+      "2 2.7783 Sfakianos / Russian WRONG (Polish)\n",
+      "name, guess and label Matsievich Russian Russian\n",
+      "3 0.0542 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Anuchin Russian Russian\n",
+      "3 0.2176 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Parakin Russian Russian\n",
+      "3 0.0248 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Showell English English\n",
+      "3 0.2795 Sfakianos / English CORRECT\n",
+      "name, guess and label Rakhil Russian Russian\n",
+      "3 0.2886 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Kennedy English Scottish\n",
+      "3 5.1136 Sfakianos / English WRONG (Scottish)\n",
+      "name, guess and label Bagmevsky Russian Russian\n",
+      "3 0.0722 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Dolton English English\n",
+      "3 0.1992 Sfakianos / English CORRECT\n",
+      "name, guess and label Lupin Russian Russian\n",
+      "3 0.1979 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Pyjov Russian Russian\n",
+      "3 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Shalenkov Russian Russian\n",
+      "3 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Golovatsky Russian Russian\n",
+      "3 0.0056 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Kaye Japanese English\n",
+      "3 3.3842 Sfakianos / Japanese WRONG (English)\n",
+      "name, guess and label Janowski Russian Polish\n",
+      "3 3.7731 Sfakianos / Russian WRONG (Polish)\n",
+      "name, guess and label Amari Arabic Arabic\n",
+      "3 0.5849 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Ewing English English\n",
+      "3 0.3316 Sfakianos / English CORRECT\n",
+      "name, guess and label Than Chinese Vietnamese\n",
+      "3 2.4164 Sfakianos / Chinese WRONG (Vietnamese)\n",
+      "name, guess and label Kuai Japanese Chinese\n",
+      "3 1.5729 Sfakianos / Japanese WRONG (Chinese)\n",
+      "name, guess and label Mas Greek Spanish\n",
+      "3 3.8898 Sfakianos / Greek WRONG (Spanish)\n",
+      "name, guess and label Pavlichenko Russian Russian\n",
+      "3 0.0091 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Pispinis Russian Greek\n",
+      "4 1.0773 Sfakianos / Russian WRONG (Greek)\n",
+      "name, guess and label Avlov Russian Russian\n",
+      "4 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Cook Korean English\n",
+      "4 1.5777 Sfakianos / Korean WRONG (English)\n",
+      "name, guess and label Isaac Japanese English\n",
+      "4 3.6858 Sfakianos / Japanese WRONG (English)\n",
+      "name, guess and label Gillard English English\n",
+      "4 0.1419 Sfakianos / English CORRECT\n",
+      "name, guess and label Eales English English\n",
+      "4 0.5211 Sfakianos / English CORRECT\n",
+      "name, guess and label Astratov Russian Russian\n",
+      "4 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Rempler English Russian\n",
+      "4 3.2425 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Chizhik Russian Russian\n",
+      "4 0.0373 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Manson English English\n",
+      "4 0.8143 Sfakianos / English CORRECT\n",
+      "name, guess and label Abelló English Italian\n",
+      "4 1.9906 Sfakianos / English WRONG (Italian)\n",
+      "name, guess and label Riverov Russian Russian\n",
+      "4 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Gudev Russian Russian\n",
+      "4 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Dikusar Russian Russian\n",
+      "4 0.3035 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Mindovsky Russian Russian\n",
+      "4 0.0099 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Fonda Italian Italian\n",
+      "4 1.4961 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Zelentsov Russian Russian\n",
+      "4 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Yakobson English Russian\n",
+      "4 0.9943 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Yuzhakov Russian Russian\n",
+      "4 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Shamoun Arabic Arabic\n",
+      "4 0.9076 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Fofanov Russian Russian\n",
+      "5 0.0001 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Froy English English\n",
+      "5 0.1466 Sfakianos / English CORRECT\n",
+      "name, guess and label Fukunaka Japanese Japanese\n",
+      "5 0.5374 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Romijnders Dutch Dutch\n",
+      "5 0.3257 Sfakianos / Dutch CORRECT\n",
+      "name, guess and label Kunze German German\n",
+      "5 0.6902 Sfakianos / German CORRECT\n",
+      "name, guess and label Tsigra Italian Russian\n",
+      "5 2.0863 Sfakianos / Italian WRONG (Russian)\n",
+      "name, guess and label Angioli Italian Italian\n",
+      "5 0.2288 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Paharkov Russian Russian\n",
+      "5 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Yankevich Russian Russian\n",
+      "5 0.0024 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Artz Spanish German\n",
+      "5 1.0761 Sfakianos / Spanish WRONG (German)\n",
+      "name, guess and label Duarte English Portuguese\n",
+      "5 7.0702 Sfakianos / English WRONG (Portuguese)\n",
+      "name, guess and label Baevski Russian Russian\n",
+      "5 0.1279 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Switzer German German\n",
+      "5 0.5032 Sfakianos / German CORRECT\n",
+      "name, guess and label Gluzman Russian Russian\n",
+      "5 0.1382 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Vederman Russian Russian\n",
+      "5 0.7622 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Abjalilov Russian Russian\n",
+      "5 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Mcdonnell English English\n",
+      "5 0.2666 Sfakianos / English CORRECT\n",
+      "name, guess and label Baklastoff Russian Russian\n",
+      "5 0.0076 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Ui Japanese Japanese\n",
+      "5 0.4399 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Stoppelbein Russian German\n",
+      "5 4.2643 Sfakianos / Russian WRONG (German)\n",
+      "name, guess and label Leeming English English\n",
+      "6 0.8910 Sfakianos / English CORRECT\n",
+      "name, guess and label Stary Arabic Czech\n",
+      "6 5.0482 Sfakianos / Arabic WRONG (Czech)\n",
+      "name, guess and label Phelps English English\n",
+      "6 0.6135 Sfakianos / English CORRECT\n",
+      "name, guess and label Samuel Arabic English\n",
+      "6 4.6643 Sfakianos / Arabic WRONG (English)\n",
+      "name, guess and label Vogt English German\n",
+      "6 2.6739 Sfakianos / English WRONG (German)\n",
+      "name, guess and label Cowell English English\n",
+      "6 0.1702 Sfakianos / English CORRECT\n",
+      "name, guess and label Foss English French\n",
+      "6 3.4864 Sfakianos / English WRONG (French)\n",
+      "name, guess and label Rheem English Korean\n",
+      "6 2.1550 Sfakianos / English WRONG (Korean)\n",
+      "name, guess and label Goloskokov Russian Russian\n",
+      "6 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Galkovsky Russian Russian\n",
+      "6 0.0020 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Mukomel Czech Russian\n",
+      "6 2.3118 Sfakianos / Czech WRONG (Russian)\n",
+      "name, guess and label Nuryaev Russian Russian\n",
+      "6 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Lysihin Russian Russian\n",
+      "6 0.0344 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Traynor English English\n",
+      "6 0.4224 Sfakianos / English CORRECT\n",
+      "name, guess and label Zhuravsky Russian Russian\n",
+      "6 0.0034 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Lovelock English English\n",
+      "6 0.7480 Sfakianos / English CORRECT\n",
+      "name, guess and label Kajahara Japanese Japanese\n",
+      "6 0.0103 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Clayton English English\n",
+      "6 0.1207 Sfakianos / English CORRECT\n",
+      "name, guess and label Zhernov Russian Russian\n",
+      "6 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Cheshire English English\n",
+      "6 0.3731 Sfakianos / English CORRECT\n",
+      "name, guess and label Cernohous English Czech\n",
+      "7 4.9506 Sfakianos / English WRONG (Czech)\n",
+      "name, guess and label Turaev Russian Russian\n",
+      "7 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Rousset English English\n",
+      "7 0.7233 Sfakianos / English CORRECT\n",
+      "name, guess and label Dudnikov Russian Russian\n",
+      "7 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Luzzatto Russian Italian\n",
+      "7 1.6171 Sfakianos / Russian WRONG (Italian)\n",
+      "name, guess and label Jijemsky Russian Russian\n",
+      "7 0.0266 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Zharuev Russian Russian\n",
+      "7 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Shamon Arabic Arabic\n",
+      "7 0.2804 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Montagna Italian Italian\n",
+      "7 0.5494 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Muirchertach Irish Irish\n",
+      "7 0.5836 Sfakianos / Irish CORRECT\n",
+      "name, guess and label Mikhalevich Russian Russian\n",
+      "7 0.0125 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Avtamonov Russian Russian\n",
+      "7 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Seidel Arabic German\n",
+      "7 2.5636 Sfakianos / Arabic WRONG (German)\n",
+      "name, guess and label D'onofrio Italian Italian\n",
+      "7 0.0288 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Piskach Russian Czech\n",
+      "7 4.0845 Sfakianos / Russian WRONG (Czech)\n",
+      "name, guess and label Hiu Chinese Chinese\n",
+      "7 0.3668 Sfakianos / Chinese CORRECT\n",
+      "name, guess and label Juzeev Russian Russian\n",
+      "7 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Dehtyar Russian Russian\n",
+      "7 0.2212 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Murychev Russian Russian\n",
+      "7 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Ramsden Dutch English\n",
+      "7 1.4706 Sfakianos / Dutch WRONG (English)\n",
+      "name, guess and label Agalakoff Russian Russian\n",
+      "8 0.0091 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Birut Russian Russian\n",
+      "8 0.7331 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Grigorchikov Russian Russian\n",
+      "8 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Kauffmann English German\n",
+      "8 1.0684 Sfakianos / English WRONG (German)\n",
+      "name, guess and label Imai Arabic Japanese\n",
+      "8 2.0404 Sfakianos / Arabic WRONG (Japanese)\n",
+      "name, guess and label Mcconnell English English\n",
+      "8 0.3414 Sfakianos / English CORRECT\n",
+      "name, guess and label Lohanin Russian Russian\n",
+      "8 0.1782 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Böhmer German German\n",
+      "8 0.7715 Sfakianos / German CORRECT\n",
+      "name, guess and label Agapov Russian Russian\n",
+      "8 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Awkhadieff Russian Russian\n",
+      "8 0.0062 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Farr English English\n",
+      "8 0.5957 Sfakianos / English CORRECT\n",
+      "name, guess and label Agani Japanese Italian\n",
+      "8 1.1287 Sfakianos / Japanese WRONG (Italian)\n",
+      "name, guess and label Bishara Arabic Arabic\n",
+      "8 0.1368 Sfakianos / Arabic CORRECT\n",
+      "name, guess and label Robson English English\n",
+      "8 0.2490 Sfakianos / English CORRECT\n",
+      "name, guess and label Böhme German German\n",
+      "8 0.7784 Sfakianos / German CORRECT\n",
+      "name, guess and label Mokeev Russian Russian\n",
+      "8 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Obando Italian Spanish\n",
+      "8 2.6170 Sfakianos / Italian WRONG (Spanish)\n",
+      "name, guess and label Vild English Russian\n",
+      "8 2.1793 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Binnington English English\n",
+      "8 0.1900 Sfakianos / English CORRECT\n",
+      "name, guess and label Zhurihin Russian Russian\n",
+      "8 0.0028 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Islyamov Russian Russian\n",
+      "9 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Cap Chinese Czech\n",
+      "9 3.1727 Sfakianos / Chinese WRONG (Czech)\n",
+      "name, guess and label Renne English Russian\n",
+      "9 4.1017 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Greensmith Russian English\n",
+      "9 1.5391 Sfakianos / Russian WRONG (English)\n",
+      "name, guess and label Demirchyan English Russian\n",
+      "9 1.3525 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Bowden English English\n",
+      "9 0.2395 Sfakianos / English CORRECT\n",
+      "name, guess and label Ott English Russian\n",
+      "9 1.8196 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Babakulov Russian Russian\n",
+      "9 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Sulzbach German German\n",
+      "9 1.1229 Sfakianos / German CORRECT\n",
+      "name, guess and label Burn English English\n",
+      "9 0.4691 Sfakianos / English CORRECT\n",
+      "name, guess and label Poogelman Russian Russian\n",
+      "9 0.4812 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Jewell English English\n",
+      "9 0.1673 Sfakianos / English CORRECT\n",
+      "name, guess and label Li Vietnamese Russian\n",
+      "9 3.6800 Sfakianos / Vietnamese WRONG (Russian)\n",
+      "name, guess and label Zhabrev Russian Russian\n",
+      "9 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Aleppo Italian Italian\n",
+      "9 0.4619 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Zhenovach Russian Russian\n",
+      "9 0.0118 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Bishop English English\n",
+      "9 0.3102 Sfakianos / English CORRECT\n",
+      "name, guess and label Addinall English English\n",
+      "9 0.2485 Sfakianos / English CORRECT\n",
+      "name, guess and label Abesadze Russian Russian\n",
+      "9 0.2737 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Jeffreys English English\n",
+      "9 0.6069 Sfakianos / English CORRECT\n",
+      "name, guess and label Biondo Russian Italian\n",
+      "10 1.2927 Sfakianos / Russian WRONG (Italian)\n",
+      "name, guess and label Beltz German German\n",
+      "10 0.3485 Sfakianos / German CORRECT\n",
+      "name, guess and label Vilyamovsky Russian Russian\n",
+      "10 0.0001 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Jikov Russian Russian\n",
+      "10 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Altimari Italian Italian\n",
+      "10 0.7270 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Templeman Russian English\n",
+      "10 1.1636 Sfakianos / Russian WRONG (English)\n",
+      "name, guess and label Adelfinski Russian Russian\n",
+      "10 0.5142 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Makhurov Russian Russian\n",
+      "10 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Dzhevetsky Russian Russian\n",
+      "10 0.0013 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Mccormack German English\n",
+      "10 1.0005 Sfakianos / German WRONG (English)\n",
+      "name, guess and label Shakhbanov Russian Russian\n",
+      "10 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Pagano Italian Italian\n",
+      "10 0.2264 Sfakianos / Italian CORRECT\n",
+      "name, guess and label Janitsky Russian Russian\n",
+      "10 0.0374 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Vilenchik Russian Russian\n",
+      "10 0.0409 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Renne English Russian\n",
+      "10 4.0747 Sfakianos / English WRONG (Russian)\n",
+      "name, guess and label Kunisada Japanese Japanese\n",
+      "10 0.0203 Sfakianos / Japanese CORRECT\n",
+      "name, guess and label Dyachkov Russian Russian\n",
+      "10 0.0000 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Martsenyuk Russian Russian\n",
+      "10 0.0134 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Awagimoff Russian Russian\n",
+      "10 0.0841 Sfakianos / Russian CORRECT\n",
+      "name, guess and label Horalya Russian Russian\n",
+      "10 0.3931 Sfakianos / Russian CORRECT\n",
+      "CPU times: user 4min 4s, sys: 12min 38s, total: 16min 42s\n",
+      "Wall time: 1min 46s\n"
+     ]
+    }
+   ],
+   "source": [
+    "%%time\n",
+    "j = 0\n",
+    "accurate = 0\n",
+    "wrong = 0\n",
+    "current_loss = 0\n",
+    "all_losses = []\n",
+    "plot_steps, print_steps = 1000, 5000\n",
+    "num_epochs = 10\n",
+    "for i in range(num_epochs):\n",
+    "    for name, language in dl:\n",
+    "        language = language[0]\n",
+    "        name = name[0]\n",
+    "    # category, line, category_tensor, line_tensor = random_training_example(category_lines, all_categories)\n",
+    "        category_tensor = torch.tensor([all_categories.index(language)], dtype=torch.long)\n",
+    "        # print(category_tensor)\n",
+    "        line_tensor = line_to_tensor(name)\n",
+    "        output, loss = train(line_tensor, category_tensor)\n",
+    "        current_loss += loss \n",
+    "        \n",
+    "    # if (i+1) % plot_steps == 0:\n",
+    "    #     all_losses.append(current_loss / plot_steps)\n",
+    "    #     current_loss = 0\n",
+    "        j+=1\n",
+    "        if (j+1) % plot_steps == 0:\n",
+    "            guess = category_from_output(output)\n",
+    "            print('name, guess and label', name, guess, language)\n",
+    "            correct = \"CORRECT\" if guess == language else f\"WRONG ({language})\"\n",
+    "            if guess == language:\n",
+    "                accurate +=1\n",
+    "            else:\n",
+    "                wrong +=1\n",
+    "            print(f\"{i+1} {loss:.4f} {line} / {guess} {correct}\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 48,
+   "id": "b8f867d4",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "> Anetakis\n",
+      "Greek\n"
+     ]
+    }
+   ],
+   "source": [
+    "predict('Anetakis')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 43,
+   "id": "2118647b-4409-4484-ac9f-8030b721e0de",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(149, 51)"
+      ]
+     },
+     "execution_count": 43,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "accurate, wrong"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "id": "a3f273e2-9735-4d39-9b5a-22af67875f62",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[<matplotlib.lines.Line2D at 0x3176f7010>]"
+      ]
+     },
+     "execution_count": 44,
+     "metadata": {},
+     "output_type": "execute_result"
+    },
+    {
+     "data": {
+      "image/png": "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",
+      "text/plain": [
+       "<Figure size 640x480 with 1 Axes>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "plt.plot(all_losses)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 45,
+   "id": "c3713071-2b58-4d89-a488-c7322d82e2e3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def predict(input_line):\n",
+    "    print(f\"\\n> {input_line}\")\n",
+    "    with torch.no_grad():\n",
+    "        line_tensor = line_to_tensor(input_line)\n",
+    "        \n",
+    "        hidden = rnn.init_hidden()\n",
+    "    \n",
+    "        for i in range(line_tensor.size()[0]):\n",
+    "            output, hidden = rnn(line_tensor[i], hidden)\n",
+    "        \n",
+    "        guess = category_from_output(output)\n",
+    "        print(guess)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 47,
+   "id": "cba00282",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "> Alexey\n",
+      "English\n"
+     ]
+    }
+   ],
+   "source": [
+    "predict('Alexey')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c22a243d-a5ef-4fbd-8253-c53bc36a4caa",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# while True:\n",
+    "#     sentence = input(\"Input:\")\n",
+    "#     if sentence == \"quit\":\n",
+    "#         break\n",
+    "    \n",
+    "#     predict(sentence)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9491eefc-2189-4883-ad75-08db2f4f38df",
+   "metadata": {},
+   "source": [
+    "Antonopoulos\n",
+    "Antonopoulos\n",
+    "Arvanitoyannis\n",
+    "Avgerinos\n",
+    "Banos\n",
+    "Batsakis\n",
+    "Bekyros\n",
+    "Belesis\n",
+    "Bertsimas\n",
+    "Bilias\n",
+    "Blades\n",
+    "Bouloukos\n",
+    "Brisimitzaki"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "all_purpose_venv",
+   "language": "python",
+   "name": "all_purpose_venv"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.2"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

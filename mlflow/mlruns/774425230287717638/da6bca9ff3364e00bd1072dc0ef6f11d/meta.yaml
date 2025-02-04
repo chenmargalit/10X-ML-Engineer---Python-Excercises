@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/chen.m/Desktop/Lectures/10xml/mlflow/mlruns/774425230287717638/da6bca9ff3364e00bd1072dc0ef6f11d/artifacts
+end_time: 1735791772834
+entry_point_name: ''
+experiment_id: '774425230287717638'
+lifecycle_stage: active
+run_id: da6bca9ff3364e00bd1072dc0ef6f11d
+run_name: baseline
+run_uuid: da6bca9ff3364e00bd1072dc0ef6f11d
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1735791738369
+status: 3
+tags: []
+user_id: chen.m
