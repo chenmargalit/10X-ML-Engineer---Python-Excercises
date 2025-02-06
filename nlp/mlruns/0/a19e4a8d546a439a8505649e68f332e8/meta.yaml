@@ -1,8 +1,9 @@
 artifact_uri: file:///Users/chen.m/Desktop/Lectures/10xml/nlp/mlruns/0/a19e4a8d546a439a8505649e68f332e8/artifacts
+deleted_time: 1738825135212
 end_time: 1733276152741
 entry_point_name: ''
 experiment_id: '0'
-lifecycle_stage: active
+lifecycle_stage: deleted
 run_id: a19e4a8d546a439a8505649e68f332e8
 run_name: ./results
 run_uuid: a19e4a8d546a439a8505649e68f332e8

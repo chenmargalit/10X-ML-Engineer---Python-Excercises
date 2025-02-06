@@ -1,0 +1,15 @@
+artifact_uri: file:///home/chen/Desktop/lectures/10x-ML-engineer/mlflow/mlruns/138736924973083267/735379a1d5954748ba89c64d84474330/artifacts
+end_time: 1738829341539
+entry_point_name: ''
+experiment_id: '138736924973083267'
+lifecycle_stage: active
+run_id: 735379a1d5954748ba89c64d84474330
+run_name: Logistic Regression
+run_uuid: 735379a1d5954748ba89c64d84474330
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1738829339044
+status: 3
+tags: []
+user_id: chen

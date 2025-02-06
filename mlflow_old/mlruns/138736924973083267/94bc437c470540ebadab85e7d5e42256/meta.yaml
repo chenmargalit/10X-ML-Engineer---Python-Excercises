@@ -1,0 +1,15 @@
+artifact_uri: file:///home/chen/Desktop/lectures/10x-ML-engineer/mlflow/mlruns/138736924973083267/94bc437c470540ebadab85e7d5e42256/artifacts
+end_time: 1738829343211
+entry_point_name: ''
+experiment_id: '138736924973083267'
+lifecycle_stage: active
+run_id: 94bc437c470540ebadab85e7d5e42256
+run_name: Decision Tree
+run_uuid: 94bc437c470540ebadab85e7d5e42256
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1738829341540
+status: 3
+tags: []
+user_id: chen

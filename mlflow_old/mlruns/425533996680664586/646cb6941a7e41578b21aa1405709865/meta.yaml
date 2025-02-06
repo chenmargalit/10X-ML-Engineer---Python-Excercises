@@ -1,0 +1,15 @@
+artifact_uri: file:///home/chen/Desktop/lectures/10x-ML-engineer/mlflow/mlruns/425533996680664586/646cb6941a7e41578b21aa1405709865/artifacts
+end_time: 1738829515711
+entry_point_name: ''
+experiment_id: '425533996680664586'
+lifecycle_stage: active
+run_id: 646cb6941a7e41578b21aa1405709865
+run_name: CatBoost
+run_uuid: 646cb6941a7e41578b21aa1405709865
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1738829512771
+status: 3
+tags: []
+user_id: chen
